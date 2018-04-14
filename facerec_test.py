@@ -14,6 +14,7 @@ from sklearn.ensemble import RandomForestClassifier
 from sklearn.pipeline import Pipeline
 from PIL import Image
 
+
 import numpy as np
 np.random.seed(123)  # for reproducibility
 
@@ -60,7 +61,7 @@ class TensorFlowInference:
         print([n.name for n in graph.as_graph_def().node if 'input' in n.name])
         
         graph_op_list=list(graph.get_operations())
-        #print([n.name for n in graph_op_list if 'MobilenetV1/Conv2d_1_depthwise/Relu6' in n.name])
+        print([n.name for n in graph_op_list if 'keras_learning' in n.name])
         
         self.tf_sess=tf.Session(graph=graph)
         
@@ -72,10 +73,10 @@ class TensorFlowInference:
         print('tf_learning_phase=',self.tf_learning_phase)
         _,w,h,_=self.tf_input_image.shape
         self.w,self.h=int(w),int(h)
-        print ('input w,h',self.w,self.h)
+        print ('input w,h',self.w,self.h,' output shape:',self.tf_output_features.shape)
         
     def extract_features(self,img_filepath):
-        if not use_lfw:
+        if False:# or not use_lfw:
             img = image.load_img(img_filepath, target_size=(self.w,self.h))#(224, 224))
         else:
             orig_w,orig_h=250,250
@@ -100,7 +101,54 @@ class TensorFlowInference:
             feed_dict[self.tf_learning_phase]=0
         preds = self.tf_sess.run(self.tf_output_features, feed_dict=feed_dict).reshape(-1)
         return preds
-
+    
+    def extract_features_from_images(self,image_dir, filepath_list):      
+        res=None
+        feed_dict={}
+        if self.tf_learning_phase is not None:
+            feed_dict[self.tf_learning_phase]=0
+        images_no=len(filepath_list)
+        batch_size=32
+        for ndx in range(0, images_no, batch_size):
+            images=[]
+            file_list= filepath_list[ndx:min(ndx + batch_size, images_no)]
+            for filepath in file_list:
+                img_filepath=os.path.join(db_dir,filepath)
+                if False:# or not use_lfw:
+                    img = image.load_img(img_filepath, target_size=(self.w,self.h))#(224, 224))
+                else:
+                    orig_w,orig_h=250,250
+                    img = image.load_img(img_filepath,target_size=(orig_w,orig_h))
+                    w1,h1=128,128
+                    dw=(orig_w-w1)/2
+                    dh=(orig_h-h1)/2
+                    box = (dw, dh, orig_w-dw, orig_h-dh)
+                    img = img.crop(box)
+                    img = img.resize((self.w,self.h))
+                
+                x = image.img_to_array(img)
+                # 'RGB'->'BGR'
+                x = x[..., ::-1]
+                # Zero-center by mean pixel
+                #x = np.expand_dims(x, axis=0)
+                images.append(x)
+            images=np.array(images)
+            images[..., 0] -= 103.939
+            images[..., 1] -= 116.779
+            images[..., 2] -= 123.68
+            #print ('images:',images.shape)
+            feed_dict[self.tf_input_image]=images
+            preds = self.tf_sess.run(self.tf_output_features, feed_dict=feed_dict).reshape(images.shape[0],-1)
+            #print(x.shape,preds.shape)
+            if res is None:
+                res=preds
+            else:
+                res=np.vstack((res,preds))
+        
+        res=np.array(res)
+        #print ('res:',res.shape)
+        return res
+        
     def close_session(self):
         self.tf_sess.close()
 
@@ -108,7 +156,7 @@ class TensorFlowInference:
 def extract_keras_features(model,img_filepath):
     _,w,h,_=model.input.shape
     w,h=int(w),int(h)
-    if not use_lfw:
+    if True:# or not use_lfw:
         img = image.load_img(img_filepath, target_size=(w,h))#(224, 224))
     else:
         orig_w,orig_h=250,250
@@ -183,8 +231,14 @@ def classifier_tester(classifier,x,y):
 
 if __name__ == '__main__':
     if use_lfw:
-        features_file='lfw_mobilenet_feats_192.npz'
-        db_dir='../images/lfw/lfw'#-deepfunneled'
+        #features_file='lfw_mobilenet_feats_224-09-new.npz'
+        #features_file='lfw_mobilenet_feats_224-03.npz'
+        #features_file='lfw_mobilenet2_feats_224-05.npz'
+        #features_file='lfw_nasnet_feats_224-08.npz'
+        features_file='lfw_mobilenet_vgg2_feats_192.npz'
+        #features_file='lfw_mobilenet_feats_vgg2_resnet.npz'
+        #features_file='lfw_nasnet_features.npz'
+        db_dir='D:/datasets/lfw_ytf/lfw'#-deepfunneled' lfw_cropped
         test_size=0.5
     elif False:
         features_file='ijba_mobilenet_feats_192.npz'
@@ -241,8 +295,18 @@ if __name__ == '__main__':
             #frozen_graph = freeze_session(K.get_session(), output_names=[cnn_model.output.op.name])
             #tf.train.write_graph(frozen_graph, 'models', 'vgg2_mobilenet.pb', as_text=False)
         else:
-            tfInference=TensorFlowInference('models/vgg2_mobilenet.pb',input_tensor='input_1:0',output_tensor='reshape_1/Reshape:0',learning_phase_tensor='conv1_bn/keras_learning_phase:0')
-            #tfInference=TensorFlowInference('models/vgg2_resnet.pb',input_tensor='input:0',output_tensor='pool5_7x7_s1:0')
+            import tensorflow.contrib.keras as keras
+            from keras.preprocessing import image
+            #tfInference=TensorFlowInference('../DNN_models/my_tf/tf_vgg2_nasnet-09.pb',input_tensor='images:0',output_tensor='final_layer/Mean:0')
+            tfInference=TensorFlowInference('../DNN_models/my_tf/vgg2_mobilenet.pb',input_tensor='input_1:0',output_tensor='reshape_1/Reshape:0',learning_phase_tensor='conv1_bn/keras_learning_phase:0')
+            #tfInference=TensorFlowInference('../DNN_models/my_tf/vgg2_mobilenet224-08-0.94.pb',input_tensor='input_1:0',output_tensor='reshape_1/Reshape:0',learning_phase_tensor='conv1_bn/keras_learning_phase:0')
+            #tfInference=TensorFlowInference('../DNN_models/my_tf/vgg2_mobilenet224-09-0.94.pb',input_tensor='input_1:0',output_tensor='reshape_1/Reshape:0')
+            
+            #tfInference=TensorFlowInference('../DNN_models/my_tf/age_gender_tf2_new-01-0.14-0.92.pb',input_tensor='input_1:0',output_tensor='global_pooling/Mean:0')
+            #tfInference=TensorFlowInference('../DNN_models/my_tf/tf_vgg2_mobilenet2_224-05.pb',input_tensor='MobilenetV2/input:0',output_tensor='MobilenetV2/Logits/AvgPool:0')
+            
+            #tfInference=TensorFlowInference('../DNN_models/my_tf/vgg2_nasnet224-08-0.91.pb',input_tensor='input_1:0',output_tensor='reshape_1/Mean:0',learning_phase_tensor='conv1_bn/keras_learning_phase:0')
+            #tfInference=TensorFlowInference('../DNN_models/my_tf/vgg2_resnet.pb',input_tensor='input:0',output_tensor='pool5_7x7_s1:0')
 
         if save_video_features:
             if use_keras:
@@ -263,6 +327,9 @@ if __name__ == '__main__':
         start_time = time.time()
         if use_keras:
             X=np.array([extract_keras_features(cnn_model,os.path.join(db_dir,filepath)) for filepath in files])
+        elif True:
+            X=tfInference.extract_features_from_images(db_dir,files)
+            tfInference.close_session()
         else:
             X=np.array([tfInference.extract_features(os.path.join(db_dir,filepath)) for filepath in files])
             tfInference.close_session()
@@ -275,11 +342,51 @@ if __name__ == '__main__':
         filepath='../images/lfw/my_vgg2_mobile192_all_features.txt'
         #filepath='../ijba/1n_images/my_vgg2_mobile192_features.txt'
         #filepath='../images/pubfig83/my_vgg2_mobile192_features.txt' #'vgg2_resnet_features.txt'
-        convert_features_to_text(X,dirs,filepath)
+        #convert_features_to_text(X,dirs,filepath)
     
     data = np.load(features_file)
     X=data['x']
+    X_norm=preprocessing.normalize(X,norm='l2')
     y=data['y']
+    
+    if False:
+        dirs_and_files=get_files(db_dir)
+        
+        from sklearn.metrics.pairwise import pairwise_distances
+        pair_dist=pairwise_distances(X_norm)
+        neighbors=pair_dist.argsort(axis=1)[:,1:]
+        print(pair_dist.shape,neighbors.shape)
+        avg_other_ind=0
+        avg_inter_min_dist,avg_intra_min_dist=0,0
+        intra_min_distances=[]
+        for i in range(neighbors.shape[0]):
+            #if i%100==0:
+            #    print(i,y[i],y[neighbors[i][0]],neighbors[i][0],pair_dist[i,neighbors[i,0]])
+            for j in range(neighbors.shape[1]):
+                if y[i]!=y[neighbors[i,j]]:
+                    avg_other_ind+=j
+                    avg_intra_min_dist+=pair_dist[i,neighbors[i,j]]
+                    intra_min_distances.append(pair_dist[i,neighbors[i,j]])
+                    if False and pair_dist[i,neighbors[i,j]]==0:
+                        print(i,y[i],y[neighbors[i][0]],neighbors[i][0],pair_dist[i,neighbors[i,0]])
+                        print(X_norm[i,:])
+                        print(X_norm[neighbors[i][0],:])
+                        print(dirs_and_files[i],dirs_and_files[neighbors[i][0]])
+                    break
+            for j in range(neighbors.shape[1]):
+                if y[i]==y[neighbors[i,j]]:
+                    avg_inter_min_dist+=pair_dist[i,neighbors[i,j]]
+                    break
+        avg_other_ind/=neighbors.shape[0]
+        avg_intra_min_dist/=neighbors.shape[0]
+        avg_inter_min_dist/=neighbors.shape[0]
+        
+        print('avg_other_ind=',avg_other_ind+1)
+        print('avg_inter_min_dist=',avg_inter_min_dist)
+        print('avg_intra_min_dist=',avg_intra_min_dist)
+        intra_min_distances.sort()
+        print('intra min=',intra_min_distances[0],' 1 percentile=',intra_min_distances[len(intra_min_distances)//100],' 5 percentile=',intra_min_distances[len(intra_min_distances)//20])
+        #sys.exit(0)
     
     y_l=list(y)
     indices=[i for i,el in enumerate(y_l) if y_l.count(el) > 1]
@@ -287,8 +394,7 @@ if __name__ == '__main__':
     label_enc=preprocessing.LabelEncoder()
     label_enc.fit(y)
     y=label_enc.transform(y)
-    X=X[indices,:]
-    X_norm=preprocessing.normalize(X,norm='l2')
+    X_norm=X_norm[indices,:]
     print('after loading: num_classes=',len(label_enc.classes_),' X shape:',X.shape)
     if True:
         pca_components=256
