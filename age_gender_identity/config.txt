@@ -1,0 +1,19 @@
+[DEFAULT]
+#minimum number of days between difference of max/min modification dates of files from cluster
+#MinDaysDifferenceBetweenPhotoMDates=0
+MinDaysDifferenceBetweenPhotoMDates=2
+
+#minimum number of photos in a cluster
+MinNoPhotos=3
+
+#minimum number of frames in a cluster extracted from a video clip
+MinNoFrames=10
+
+#distance threshold for clustering
+DistanceThreshold=0.82
+
+#minimum width (in percent) of face to set 'private' status to a photo
+MinFaceWidthPercent=7
+
+#directory with photos
+InputDirectory=D:\datasets\my_photos\iphone
