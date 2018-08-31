@@ -12,12 +12,14 @@ from sklearn import preprocessing
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn import metrics
 
+
+sys.path.append("..")
 from facerec_test import TensorFlowInference,is_image
 
 rankorder_clustering=1
 scipy_clustering=2
 sklearn_clustering=3
-use_clustering=rankorder_clustering
+use_clustering=scipy_clustering
 
 if use_clustering==rankorder_clustering:
     import networkx as nx   
@@ -506,6 +508,7 @@ if __name__ == '__main__':
     if use_clustering==rankorder_clustering:
         method_threshold_list=[['single',(0.9,14)]]
     else:
+        #method_threshold_list=[['single',0.78],['average',0.96]]
         method_threshold_list=[['single',0.78],['average',0.96],['complete',1.1],['weighted',1],['centroid',1],['median',1],['ward',1]]
         #method_threshold_list=[['single',0.00076],['average',0.00094],['complete',0.00107]]
     if False:

@@ -2,12 +2,13 @@ import argparse
 import sys
 import os.path
 import os
+import math
 import datetime, time
 import numpy as np
 from sklearn import preprocessing, model_selection
 from sklearn.decomposition import PCA
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import SVC
+from sklearn.svm import SVC,LinearSVC
 from sklearn.ensemble import RandomForestClassifier
 #from xgboost import XGBClassifier
 #from lightgbm import LGBMClassifier
@@ -19,8 +20,8 @@ import numpy as np
 np.random.seed(123)  # for reproducibility
 
 
-use_my_cnn=True
-use_keras=False
+use_my_cnn=False
+use_keras=True
 use_lfw=True
 
 img_extensions=['.jpg','.jpeg','.png']
@@ -156,7 +157,7 @@ class TensorFlowInference:
 def extract_keras_features(model,img_filepath):
     _,w,h,_=model.input.shape
     w,h=int(w),int(h)
-    if True:# or not use_lfw:
+    if False:# or not use_lfw:
         img = image.load_img(img_filepath, target_size=(w,h))#(224, 224))
     else:
         orig_w,orig_h=250,250
@@ -221,8 +222,34 @@ def KL_dist(x, y):
     KL_array=(x+0.001)*np.log((x+0.001)/(y+0.001))
     return np.sum(KL_array)
 
+def get_single_image_per_class_cv(y, n_splits=10,random_state=0):
+    res_cv=[]
+    inds = np.arange(len(y))
+    np.random.seed(random_state)
+    for _ in range(n_splits):
+        inds_train, inds_test = [], []
+
+        for lbl in np.unique(y):
+            tmp_inds = inds[y == lbl]
+            np.random.shuffle(tmp_inds)
+            last_ind=1
+            #last_ind=math.ceil(len(tmp_inds)/2)
+            if last_ind==0 and len(tmp_inds)>0:
+                last_ind=1
+            inds_train.extend(tmp_inds[:last_ind])
+            inds_test.extend(tmp_inds[last_ind:])
+            
+        inds_train = np.array(inds_train)
+        inds_test = np.array(inds_test)
+    
+        #print (inds_train.shape, inds_test.shape)
+        #print (inds_train[:10], inds_test[:10])
+        res_cv.append((inds_train, inds_test))
+    return res_cv
+
 def classifier_tester(classifier,x,y):
-    sss=model_selection.StratifiedShuffleSplit(n_splits=5, test_size=0.5, random_state=0)
+    sss=get_single_image_per_class_cv(y)
+    #sss=model_selection.StratifiedShuffleSplit(n_splits=5, test_size=0.5, random_state=0)
     scores=model_selection.cross_validate(classifier,x, y, scoring='accuracy',cv=sss)
     acc=scores['test_score']
     print('accuracies=',acc*100)
@@ -235,9 +262,14 @@ if __name__ == '__main__':
         #features_file='lfw_mobilenet_feats_224-03.npz'
         #features_file='lfw_mobilenet2_feats_224-05.npz'
         #features_file='lfw_nasnet_feats_224-08.npz'
-        features_file='lfw_mobilenet_vgg2_feats_192.npz'
-        #features_file='lfw_mobilenet_feats_vgg2_resnet.npz'
+        #features_file='lfw_mobilenet_vgg2_mobilenet_fbn.npz'
+        
         #features_file='lfw_nasnet_features.npz'
+        
+        #features_file='lfw_ytf_subset_mobilenet_feats_vgg2.npz'
+        #features_file='lfw_ytf_subset_resnet_feats_vgg2.npz'
+        features_file='lfw_ytf_subset_mobilenet_feats_vgg2.npz'
+        
         db_dir='D:/datasets/lfw_ytf/lfw'#-deepfunneled' lfw_cropped
         test_size=0.5
     elif False:
@@ -258,6 +290,7 @@ if __name__ == '__main__':
             from keras.engine import  Model
             from keras.preprocessing import image
             from keras import backend as K
+            K.set_learning_phase(0)
 
             if use_my_cnn:
                 from keras.layers import Flatten, Dense, Dropout,GlobalAveragePooling2D, Reshape, Conv2D, Activation
@@ -287,22 +320,28 @@ if __name__ == '__main__':
             else:
                 from keras_vggface.vggface import VGGFace
                 from keras_vggface.utils import preprocess_input
-                model = VGGFace() # pooling: None, avg or max
-                out = model.get_layer('fc7/relu').output
+                model_name, layer='vgg16','fc7/relu'
+                #model_name, layer='resnet50','avg_pool'
+                model = VGGFace(model=model_name) # pooling: None, avg or max
+                out = model.get_layer(layer).output
             
             cnn_model = Model(model.input, out)
+            cnn_model.summary()
             #cnn_model.save('models/vgg2_mobilenet.h5')
             #frozen_graph = freeze_session(K.get_session(), output_names=[cnn_model.output.op.name])
-            #tf.train.write_graph(frozen_graph, 'models', 'vgg2_mobilenet.pb', as_text=False)
+            #tf.train.write_graph(frozen_graph, '../DNN_models/my_tf', 'vggface.pb', as_text=False)
+            #sys.exit(0)
         else:
             import tensorflow.contrib.keras as keras
             from keras.preprocessing import image
             #tfInference=TensorFlowInference('../DNN_models/my_tf/tf_vgg2_nasnet-09.pb',input_tensor='images:0',output_tensor='final_layer/Mean:0')
-            tfInference=TensorFlowInference('../DNN_models/my_tf/vgg2_mobilenet.pb',input_tensor='input_1:0',output_tensor='reshape_1/Reshape:0',learning_phase_tensor='conv1_bn/keras_learning_phase:0')
+            #tfInference=TensorFlowInference('../DNN_models/my_tf/vgg2_mobilenet.pb',input_tensor='input_1:0',output_tensor='reshape_1/Reshape:0',learning_phase_tensor='conv1_bn/keras_learning_phase:0')
+            #tfInference=TensorFlowInference('../DNN_models/my_tf/vgg2_mobilenet2_192-08-0.86.pb',input_tensor='input_1:0',output_tensor='reshape_1/Mean:0')
             #tfInference=TensorFlowInference('../DNN_models/my_tf/vgg2_mobilenet224-08-0.94.pb',input_tensor='input_1:0',output_tensor='reshape_1/Reshape:0',learning_phase_tensor='conv1_bn/keras_learning_phase:0')
             #tfInference=TensorFlowInference('../DNN_models/my_tf/vgg2_mobilenet224-09-0.94.pb',input_tensor='input_1:0',output_tensor='reshape_1/Reshape:0')
             
-            #tfInference=TensorFlowInference('../DNN_models/my_tf/age_gender_tf2_new-01-0.14-0.92.pb',input_tensor='input_1:0',output_tensor='global_pooling/Mean:0')
+            #tfInference=TensorFlowInference('../DNN_models/my_tf/age_gender_tf2_new-01-0.14-0.92_fbn_relu6.pb',input_tensor='input_1:0',output_tensor='global_pooling/Mean:0')
+            tfInference=TensorFlowInference('../DNN_models/my_tf/age_gender_tf2_new-01-0.14-0.92.pb',input_tensor='input_1:0',output_tensor='global_pooling/Mean:0')
             #tfInference=TensorFlowInference('../DNN_models/my_tf/tf_vgg2_mobilenet2_224-05.pb',input_tensor='MobilenetV2/input:0',output_tensor='MobilenetV2/Logits/AvgPool:0')
             
             #tfInference=TensorFlowInference('../DNN_models/my_tf/vgg2_nasnet224-08-0.91.pb',input_tensor='input_1:0',output_tensor='reshape_1/Mean:0',learning_phase_tensor='conv1_bn/keras_learning_phase:0')
@@ -316,7 +355,12 @@ if __name__ == '__main__':
             #save_video_features_to_text('../images/ijba/1n_images/video','../images/ijba/1n_images/video_my_vgg2_mobile192_features.txt',nn_model)
             save_video_features_to_text('../images/YTF/cropped','../images/YTF/vgg2_mobilenet_dnn_features1.txt',nn_model)
             
-        dirs_and_files=np.array(get_files(db_dir))
+        if False:
+            dirs_and_files=np.array(get_files(db_dir))
+        else: #LFW and YTF concatenation
+            subjects = (line.rstrip('\n') for line in open('D:/datasets/lfw_ytf/lfw_ytf_classes.txt'))
+            dirs_and_files=np.array([[d,os.path.join(d,f)] for d in subjects for f in next(os.walk(os.path.join(db_dir,d)))[2] if is_image(f)])
+            
         dirs=dirs_and_files[:,0]
         files=dirs_and_files[:,1]
 
@@ -406,16 +450,21 @@ if __name__ == '__main__':
         #classifiers.append(['k-NN chisq',KNeighborsClassifier(n_neighbors=1,metric=chi2dist)])
         #classifiers.append(['k-NN KL',KNeighborsClassifier(n_neighbors=1,metric=KL_dist)])
         #classifiers.append(['k-NN mahalonbis',KNeighborsClassifier(1,metric='mahalanobis',metric_params={'V': np.cov(X)})])
-        #classifiers.append(['rf',RandomForestClassifier(n_estimators=100,max_depth=2)])
+        classifiers.append(['rf',RandomForestClassifier(n_estimators=100,max_depth=10)])
         #classifiers.append(['svm',SVC()])
+        #classifiers.append(['linear svm',LinearSVC()])
+        classifiers.append(['svm (C=10)',SVC(C=10)])
+        classifiers.append(['linear svm (C=10)',LinearSVC(C=10)])
         for cls_name,classifier in classifiers:
             print(cls_name)
             classifier_tester(classifier,X_norm,y)
     else:
         classifier=KNeighborsClassifier(1)
         X_train, X_test, y_train, y_test = model_selection.train_test_split(X_norm, y, test_size=test_size, random_state=42, stratify=y)
+        #X_train, X_test, y_train, y_test = model_selection.train_test_split(X_norm, y, train_size=len(label_enc.classes_), random_state=42, stratify=y)
         print (X_train.shape,X_test.shape)
-        print(y_train,y_test)
+        print(y_train.shape,y_test.shape)
+        print('train classes:',len(np.unique(y_train)))
         classifier.fit(X_train,y_train)
         y_test_pred=classifier.predict(X_test)
         acc=100.0*(y_test==y_test_pred).sum()/len(y_test)
