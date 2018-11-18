@@ -49,8 +49,10 @@ class FacialImageProcessing:
         self.sess=tf.Session(graph=full_graph)#,config=tf.ConfigProto(device_count={'CPU':1,'GPU':0}))
         if self.mtcnn_detector:
             self.pnet, self.rnet, self.onet = FacialImageProcessing.load_mtcnn(self.sess,full_graph)     
+            print('MTCNN detector loaded')
         else:
-            self.face_cascade = cv2.CascadeClassifier('haarcascade_frontalface_alt2.xml')
+            self.face_cascade = cv2.CascadeClassifier('lbpcascade_frontalface.xml')
+            print('opencv detector loaded')
 
         if age_gender_one_model:
             self.age_gender_fun=self.load_age_gender(self.sess,full_graph)
