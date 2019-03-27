@@ -15,7 +15,7 @@ Required libraries: Tensorflow, OpenCV, SciPy, SKLearn, MatplotLib, MXNet (for I
 
 Please download [exiftool](https://www.sno.phy.queensu.ca/~phil/exiftool/) in order to detect orientation of video clips
 
-Script utkface_test.py contains comparison of our models with several known open-source implementations of age/gender recognition
+Script utkface_test.py contains comparison of our models with several known open-source implementations of age/gender recognition for [UTKFace dataset](https://susanqq.github.io/UTKFace/)
 
 * [DEX VGG](https://data.vision.ee.ethz.ch/cvl/rrothe/imdb-wiki/) models converted from Caffe to Tensorflow
 * [Wide ResNet (weights.28-3.73.hdf5)](https://github.com/yu4u/age-gender-estimation)
