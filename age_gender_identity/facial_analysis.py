@@ -26,7 +26,12 @@ video_extensions=['.mov','.avi']
 def is_video(path):
     return is_specialfile(path,video_extensions)
     
-age_gender_one_model=True
+use_sota=False
+if use_sota:
+    age_gender_one_model=False
+else:
+    age_gender_one_model=True
+
 class FacialImageProcessing:
     # minsize: minimum of faces' size
     def __init__(self, print_stat=False, mtcnn_detector=True, minsize = 32):
@@ -37,7 +42,11 @@ class FacialImageProcessing:
         models_path,_ = os.path.split(os.path.realpath(__file__))
         model_files={os.path.join(models_path,'mtcnn.pb'):''}
         if age_gender_one_model:
-            model_files[os.path.join(models_path,'age_gender_tf2_new-01-0.14-0.92.pb')]=''
+            model_files[os.path.join(models_path,'age_gender_tf2_224_deep-03-0.13-0.97.pb')]=''
+            #model_files['D:/src_code/DNN_models/my_tf/age_gender_tf2_224_deep_fn-01-0.15-0.98.pb']=''
+        elif use_sota:
+            model_files['D:/src_code/DNN_models/age_gender/vgg16gender.pb']='gender'
+            model_files['D:/src_code/DNN_models/age_gender/vgg16age.pb']='age'
         else:
             model_files['D:/src_code/DNN_models/my_tf/gender_mobilenet224_02-0.92.pb']='gender'
             #model_files['D:/src_code/DNN_models/my_tf/age_mobilenet192_tf1_regr.pb']='age'
@@ -66,8 +75,10 @@ class FacialImageProcessing:
     
     @staticmethod
     def is_male(gender_preds):
-        return (gender_preds>=0.6)
-        #return gender_preds[1]>0.5
+        if use_sota:
+            return gender_preds[1]>0.5
+        else:
+            return (gender_preds>=0.6)
         
     def load_age_gender(self,sess,graph):
         age_out=graph.get_tensor_by_name('age_pred/Softmax:0')
@@ -119,12 +130,14 @@ class FacialImageProcessing:
         return age_gender_fun
 
     def load_gender(self,sess,graph):
-        gender_out=graph.get_tensor_by_name('gender/predictions/Sigmoid:0')
-        #gender_out=graph.get_tensor_by_name('gender/prob:0')
+        if use_sota:
+            gender_out=graph.get_tensor_by_name('gender/prob:0')
+            gender_in=graph.get_tensor_by_name('gender/data:0')
+        else:
+            gender_out=graph.get_tensor_by_name('gender/predictions/Sigmoid:0')
+            gender_in=graph.get_tensor_by_name('gender/input_1:0')
         print(gender_out)
         print([n.name for n in graph.as_graph_def().node if 'data' in n.name])
-        gender_in=graph.get_tensor_by_name('gender/input_1:0')
-        #gender_in=graph.get_tensor_by_name('gender/data:0')
         _,w,h,_=gender_in.shape
         print(gender_in,w,h)
         def gender_fun(img):
@@ -144,14 +157,17 @@ class FacialImageProcessing:
         return gender_fun
 
     def load_age(self,sess,graph):
-        #print([n.name for n in graph.as_graph_def().node if 'predictions' in n.name])
-        #age_out=graph.get_tensor_by_name('age/predictions/BiasAdd:0')
-        age_out=graph.get_tensor_by_name('age/predictions/Softmax:0')
-        #age_out=graph.get_tensor_by_name('age/prob:0')
+        if use_sota:
+            age_out=graph.get_tensor_by_name('age/prob:0')
+            age_in=graph.get_tensor_by_name('age/data:0')
+        else:
+            #print([n.name for n in graph.as_graph_def().node if 'predictions' in n.name])
+            #age_out=graph.get_tensor_by_name('age/predictions/BiasAdd:0')
+            age_out=graph.get_tensor_by_name('age/predictions/Softmax:0')
+            age_in=graph.get_tensor_by_name('age/input_1:0')
+            #age_in=graph.get_tensor_by_name('age/lambda_1_input:0')
+
         print(age_out)
-        age_in=graph.get_tensor_by_name('age/input_1:0')
-        #age_in=graph.get_tensor_by_name('age/lambda_1_input:0')
-        #age_in=graph.get_tensor_by_name('age/data:0')
         _,w,h,_=age_in.shape
         print(age_in,w,h)
         def age_fun(img):
