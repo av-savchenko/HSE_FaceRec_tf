@@ -42,8 +42,8 @@ class FacialImageProcessing:
         models_path,_ = os.path.split(os.path.realpath(__file__))
         model_files={os.path.join(models_path,'mtcnn.pb'):''}
         if age_gender_one_model:
-            model_files[os.path.join(models_path,'age_gender_tf2_224_deep-03-0.13-0.97.pb')]=''
-            #model_files['D:/src_code/DNN_models/my_tf/age_gender_tf2_224_deep_fn-01-0.15-0.98.pb']=''
+            model_files[os.path.join(models_path,'age_gender_tf2_224_deep-03-0.13-0.97_new.pb')]='' #age_gender_tf2_224_deep_fn-01-0.15-0.98
+            #model_files['D:/src_code/DNN_models/my_tf/age_gender_scratch-06-0.15-0.98.pb']=''
         elif use_sota:
             model_files['D:/src_code/DNN_models/age_gender/vgg16gender.pb']='gender'
             model_files['D:/src_code/DNN_models/age_gender/vgg16age.pb']='age'
@@ -146,9 +146,10 @@ class FacialImageProcessing:
             x=resized_image.astype(np.float32)
             # 'RGB'->'BGR'
             x = x[..., ::-1]
-            x[..., 0] -= 103.939
-            x[..., 1] -= 116.779
-            x[..., 2] -= 123.68
+            if not use_sota or True:
+                x[..., 0] -= 103.939
+                x[..., 1] -= 116.779
+                x[..., 2] -= 123.68
             x = np.expand_dims(x, axis=0)
             preds = sess.run(gender_out, feed_dict={gender_in: x}).reshape(-1)
             if self.print_stat:
@@ -177,9 +178,10 @@ class FacialImageProcessing:
             x=resized_image.astype(np.float32)
             # 'RGB'->'BGR'
             x = x[..., ::-1]
-            x[..., 0] -= 103.939
-            x[..., 1] -= 116.779
-            x[..., 2] -= 123.68
+            if not use_sota or True:
+                x[..., 0] -= 103.939
+                x[..., 1] -= 116.779
+                x[..., 2] -= 123.68
             x = np.expand_dims(x, axis=0)
             preds = sess.run(age_out, feed_dict={age_in: x}).reshape(-1)
             #print (preds.shape)

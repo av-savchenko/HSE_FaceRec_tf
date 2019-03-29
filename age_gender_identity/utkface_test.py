@@ -112,6 +112,46 @@ elif False:
         
 elif False:
     import tensorflow as tf
+    adience_range=True
+    src_dir=os.path.join(MODEL_DIR,'models_tf')
+    from facial_analysis import FacialImageProcessing
+    with tf.Graph().as_default() as full_graph:
+        for model_file in ['gender','age']:
+            tf.import_graph_def(FacialImageProcessing.load_graph_def(os.path.join(src_dir,model_file+'_net.pb')), name=model_file)
+    
+    sess=tf.Session(graph=full_graph)
+    #print([n.name for n in full_graph.as_graph_def().node])
+    gender_out=full_graph.get_tensor_by_name('gender/prob:0')
+    gender_in=full_graph.get_tensor_by_name('gender/input:0')
+    age_out=full_graph.get_tensor_by_name('age/prob:0')
+    age_in=full_graph.get_tensor_by_name('age/input:0')
+    _,w,h,_=age_in.shape
+    print(age_in,w,h)
+    mean_img = 127 #np.load(os.path.join(src_dir,'mean.npy')).reshape((256,256,3))#.transpose((1,0,2)) #tf.constant(np.load(os.path.join(src_dir,'mean.npy')), dtype=tf.float32, shape=[256, 256, 3])
+    #print(mean_img.shape)
+    
+    def get_age_female(draw):
+        img=cv2.cvtColor(draw,cv2.COLOR_BGR2RGB)
+        resized_image = cv2.resize(img, (256,256))
+        res_im=resized_image.astype(np.float32)
+        res_im = res_im-mean_img
+        #res_im_arr -= mean_img
+        # 'RGB'->'BGR'
+        x = cv2.resize(res_im, (w,h))
+        x = x[..., ::-1]
+        face_imgs=np.expand_dims(x, axis=0)
+
+        predicted_genders = sess.run(gender_out, feed_dict={gender_in: face_imgs})
+        predicted_ages = sess.run(age_out, feed_dict={age_in: face_imgs})
+        is_female=1 if predicted_genders[0][0]<0.5 else 0
+        predicted_age_range=np.argmax(predicted_ages)
+        predicted_age=sum(adience_age_list[predicted_age_range])/2
+        #print(predicted_genders,predicted_ages,is_female,predicted_age_range,predicted_age)
+        return predicted_age,is_female
+        
+
+elif False:
+    import tensorflow as tf
     multi_task_dir=os.path.join(MODEL_DIR,'multi-task-learning-master')
     sys.path.append(multi_task_dir)
     import BKNetStyle2 as BKNetStyle
@@ -255,7 +295,7 @@ else:
         model = WideResNet(face_size, depth=16, k=8)()
         #WRN_WEIGHTS_PATH = "https://github.com/Tony607/Keras_age_gender/releases/download/V1.0/weights.18-4.06.hdf5"
         WRN_WEIGHTS_PATH = "https://github.com/yu4u/age-gender-estimation/releases/download/v0.5/weights.28-3.73.hdf5"
-        fpath = get_file('weights.18-4.06.hdf5', #'weights.28-3.73.hdf5',
+        fpath = get_file('weights.28-3.73.hdf5',#'weights.18-4.06.hdf5', #
                          WRN_WEIGHTS_PATH,
                          cache_subdir=MODEL_DIR)
         model.load_weights(fpath)
@@ -282,13 +322,16 @@ def get_files_from_csv(db_dir):
         for row in csv_reader:
             if line_count != 0:
                 #print(line_count,row[1])
-                files.append(row[1])
+                if os.path.exists(os.path.join(db_dir,row[1])):
+                    files.append(row[1])
+                else:
+                    print(row[1],' not found!!!')
             line_count+=1
     return files
                 
 from random import shuffle
 def process_utkface(db_dir):
-    all_set=True
+    all_set=False
     if all_set:
         files=[f for f in next(os.walk(db_dir))[2] if f.lower().endswith('jpg')]
     else:
@@ -296,7 +339,7 @@ def process_utkface(db_dir):
     shuffle(files)
     
     gender_acc=0
-    age_acc=0
+    age_acc=age_audience_acc=0
     age_delta=5
     age_mae=0
     num_files=len(files)
@@ -316,20 +359,23 @@ def process_utkface(db_dir):
         if is_female==real_is_female:
             gender_acc+=1
 
-        if adience_range:
-            real_age_range=get_age_range(real_age)
-            age_range=get_age_range(age)
-            #print(real_age_range,age_range)
-            if real_age_range==age_range:
-                age_acc+=1
-        else:
+        real_age_range=get_age_range(real_age)
+        age_range=get_age_range(age)
+        #print(real_age_range,age_range)
+        if real_age_range==age_range:
+            age_audience_acc+=1
+        if not adience_range:
             if abs(age-real_age)<=age_delta:
                 age_acc+=1
             age_mae+=abs(age-real_age)
 
     elapsed = time.time() - t
 
-    print('num_files=',num_files,' elapsed=',elapsed,' gender accuracy=',gender_acc/num_files,' age accuracy=',age_acc/num_files, ' age MAE=',age_mae/num_files)
+    if not adience_range:
+        print('num_files=',num_files,' elapsed=',elapsed,' gender accuracy=',gender_acc/num_files,' age (Adience) accuracy=',age_audience_acc/num_files,' age accuracy=',age_acc/num_files, ' age MAE=',age_mae/num_files)
+    else:
+        print('num_files=',num_files,' elapsed=',elapsed,' gender accuracy=',gender_acc/num_files,' age (Adience) accuracy=',age_audience_acc/num_files)
 
 if __name__ == '__main__':
-    process_utkface('D:/datasets/UTKFace')
+    #process_utkface('D:/datasets/UTKFace/aligned_cropped')
+    process_utkface('D:/src_code/DNN_models/age_gender/Agendernet-master/data/utkface_aligned_224')
