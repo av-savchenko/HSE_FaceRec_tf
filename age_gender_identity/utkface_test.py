@@ -331,7 +331,7 @@ def get_files_from_csv(db_dir):
                 
 from random import shuffle
 def process_utkface(db_dir):
-    all_set=False
+    all_set=True
     if all_set:
         files=[f for f in next(os.walk(db_dir))[2] if f.lower().endswith('jpg')]
     else:
@@ -377,5 +377,5 @@ def process_utkface(db_dir):
         print('num_files=',num_files,' elapsed=',elapsed,' gender accuracy=',gender_acc/num_files,' age (Adience) accuracy=',age_audience_acc/num_files)
 
 if __name__ == '__main__':
-    #process_utkface('D:/datasets/UTKFace/aligned_cropped')
-    process_utkface('D:/src_code/DNN_models/age_gender/Agendernet-master/data/utkface_aligned_224')
+    process_utkface('D:/datasets/UTKFace/aligned_cropped')
+    #process_utkface('D:/src_code/DNN_models/age_gender/Agendernet-master/data/utkface_aligned_224')
