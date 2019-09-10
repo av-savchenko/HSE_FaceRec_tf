@@ -12,7 +12,6 @@ from sklearn import preprocessing
 from sklearn.metrics.pairwise import pairwise_distances
 from sklearn import metrics
 
-
 sys.path.append("..")
 from facerec_test import TensorFlowInference,is_image
 
@@ -289,7 +288,7 @@ def get_facial_clusters(dist_matrix,distanceThreshold=1,all_indices=None,no_imag
 class FeatureExtractor:
     def __init__(self,vggmodel=None):
         if vggmodel is None:
-            self.tfInference=TensorFlowInference('../DNN_models/my_tf/age_gender_tf2_new-01-0.14-0.92.pb',input_tensor='input_1:0',output_tensor='global_pooling/Mean:0')
+            self.tfInference=TensorFlowInference('age_gender_tf2_new-01-0.14-0.92.pb',input_tensor='input_1:0',output_tensor='global_pooling/Mean:0')
         else:
             self.tfInference=None
             
@@ -361,8 +360,8 @@ def BCubed_stat(y_true, y_pred, beta=1.0):
     
 featureExtractor=None
 def get_clustering_results(db_dir,method,distanceThreshold):
-    #features_file=os.path.join(db_dir,'features%s.npz'%(model_desc[model_ind][1]))
-    features_file='D:/src_code/HSE_FaceRec_tf/lfw_ytf_subset_resnet_feats_vgg2.npz'
+    features_file=os.path.join(db_dir,'features%s.npz'%(model_desc[model_ind][1]))
+    #features_file='D:/src_code/HSE_FaceRec_tf/lfw_ytf_subset_resnet_feats_vgg2.npz'
     if not os.path.exists(features_file):
         print(db_dir)
         global featureExtractor
@@ -385,8 +384,8 @@ def get_clustering_results(db_dir,method,distanceThreshold):
     data = np.load(features_file)
     X=data['x']
     X_norm=preprocessing.normalize(X,norm='l2')
-    #y_true=data['y_true']
-    y_true=data['y']
+    y_true=data['y_true']
+    #y_true=data['y']
     
     label_enc=preprocessing.LabelEncoder()
     label_enc.fit(y_true)
@@ -417,7 +416,7 @@ def get_clustering_results(db_dir,method,distanceThreshold):
 def get_clustering_statistics(db_dir,method,distanceThreshold):
     num_of_classes,num_of_clusters,y_true, y_pred=get_clustering_results(db_dir,method,distanceThreshold)
     ari=metrics.adjusted_rand_score(y_true, y_pred)
-    ami=metrics.adjusted_mutual_info_score(y_true, y_pred)
+    ami=metrics.adjusted_mutual_info_score(y_true, y_pred,average_method ='arithmetic')
     homogeneity,completeness,v_measure=metrics.homogeneity_completeness_v_measure(y_true, y_pred)
     #fm=metrics.fowlkes_mallows_score(y_true, y_pred)
     bcubed_precision,bcubed_recall,bcubed_fmeasure=BCubed_stat(y_true, y_pred)
@@ -437,6 +436,7 @@ def test_avg_clustering(db_dirs,method,distanceThreshold):
     stats=np.zeros((num_of_dirs,len(stats_names)))
     for i,db_dir in enumerate(db_dirs):
         stats[i]=get_clustering_statistics(db_dir,method,distanceThreshold)
+        
         
     mean_stats=np.mean(stats,axis=0)
     std_stats=np.std(stats,axis=0)
@@ -478,10 +478,10 @@ def test_avg_clustering_with_model_selection(db_dirs,method,val_dirs_count=2):
             currentStatistic=0
             for i,db_dir in enumerate(db_dirs[:val_dirs_count]):
                 num_of_classes,num_of_clusters,y_true, y_pred=get_clustering_results(db_dir,method,distanceThreshold)
-                #bcubed_precision,bcubed_recall,bcubed_fmeasure=BCubed_stat(y_true, y_pred)
-                #currentStatistic+=bcubed_fmeasure
-                homogeneity,completeness,v_measure=metrics.homogeneity_completeness_v_measure(y_true, y_pred)
-                currentStatistic+=v_measure
+                bcubed_precision,bcubed_recall,bcubed_fmeasure=BCubed_stat(y_true, y_pred)
+                currentStatistic+=bcubed_precision
+                #homogeneity,completeness,v_measure=metrics.homogeneity_completeness_v_measure(y_true, y_pred)
+                #currentStatistic+=v_measure
                 #print(num_of_classes)
             currentStatistic/=val_dirs_count
             #print(distanceThreshold,currentStatistic)
@@ -490,6 +490,8 @@ def test_avg_clustering_with_model_selection(db_dirs,method,val_dirs_count=2):
                 bestThreshold=distanceThreshold
             if currentStatistic<prevStatistic-0.01:
                 break
+            if currentStatistic>0.85:
+                break
             prevStatistic=currentStatistic
         
     print('method:',method,'bestParams:',bestThreshold,'bestStatistic:',bestStatistic)
@@ -497,7 +499,7 @@ def test_avg_clustering_with_model_selection(db_dirs,method,val_dirs_count=2):
     test_avg_clustering(db_dirs,method,bestThreshold)  #hack!!!
 
 model_desc=[[None,''],['vgg16','_vgg16'],['resnet50','_resnet50']]
-model_ind=1
+model_ind=0
 if __name__ == '__main__':
     db_dirs=[]
     if True:
@@ -508,8 +510,8 @@ if __name__ == '__main__':
     if use_clustering==rankorder_clustering:
         method_threshold_list=[['single',(0.9,14)]]
     else:
-        #method_threshold_list=[['single',0.78],['average',0.96]]
-        method_threshold_list=[['single',0.78],['average',0.96],['complete',1.1],['weighted',1],['centroid',1],['median',1],['ward',1]]
+        method_threshold_list=[['single',0.78],['average',0.96]]
+        #method_threshold_list=[['single',0.78],['average',0.96],['complete',1.1],['weighted',1],['centroid',1],['median',1],['ward',1]]
         #method_threshold_list=[['single',0.00076],['average',0.00094],['complete',0.00107]]
     if False:
         #ind=0
