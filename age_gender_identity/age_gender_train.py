@@ -158,11 +158,11 @@ if __name__ == '__main__':
         gender_val_dir, target_size=target_size,
         batch_size=batch_size, class_mode='binary')
 
-    age_train_samples,age_classes_num=age_train_generator.samples,age_train_generator.num_class
+    age_train_samples,age_classes_num=age_train_generator.samples,age_train_generator.num_classes
     age_val_samples=age_val_generator.samples
     print('age after read',age_train_samples,age_val_samples,age_classes_num)
     
-    gender_train_samples,gender_classes_num=gender_train_generator.samples,gender_train_generator.num_class
+    gender_train_samples,gender_classes_num=gender_train_generator.samples,gender_train_generator.num_classes
     gender_val_samples=gender_val_generator.samples
     print('gender after read',gender_train_samples,gender_val_samples,gender_classes_num)
 
